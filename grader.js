@@ -24,6 +24,8 @@ References:
 var fs = require('fs');
 var program = require('commander');
 var cheerio = require('cheerio');
+var util = require('util');
+var rest = require('restler');
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
 
@@ -55,6 +57,30 @@ var checkHtmlFile = function(htmlfile, checksfile) {
     return out;
 };
 
+var html2OutJson = function(htmlfile, checksfile) {
+    var checkJson = checkHtmlFile(program.file, program.checks);
+    var outJson = JSON.stringify(checkJson, null, 4);
+    console.log(outJson);
+};
+
+var writeAndCheckHtmlFile = function(htmlfile, checksfile, url) {
+    var writeAndCheck = function(result, response) {
+        if (result instanceof Error) {
+            console.error('Error: %s (%s)', util.format(result.message), url);
+        } else {
+            //console.error("Wrote %s", htmlfile);
+            fs.writeFileSync(htmlfile, result);
+	        html2OutJson(htmlfile, checksfile);
+        }
+    };
+    return writeAndCheck;
+};
+
+var url2OutJson = function(htmlfile, checksfile, url) {
+    var writeAndCheck = writeAndCheckHtmlFile(htmlfile, checksfile, url);
+    rest.get(url).on('complete', writeAndCheck);
+};
+
 var clone = function(fn) {
     // Workaround for commander.js issue.
     // http://stackoverflow.com/a/6772648
@@ -65,10 +91,16 @@ if(require.main == module) {
     program
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
         .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+        .option('-u, --url <url>', 'URL')
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+  //  var checkJson = checkHtmlFile(program.file, program.checks);
+  //  var outJson = JSON.stringify(checkJson, null, 4);
+  //  console.log(outJson);
+    if(program.url) {
+        url2OutJson(program.file, program.checks, program.url);
+    } else {
+	html2OutJson(program.file, program.checks);
+    }
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
